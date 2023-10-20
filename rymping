@@ -7,9 +7,12 @@ import time
 import urllib.request
 
 import feedparser
+from bs4 import BeautifulSoup
 # from icecream import ic
 
 from config import ROLE, URL
+
+USERAGENT = 'RYM Podcast Bot'
 
 HTML_ANCHOR = re.compile(
     r"(.*)<a[^>]* href=([\"'])([^\"]+)\2[^>]*>([^<]+)</a>(.*)")
@@ -29,6 +32,24 @@ def html_to_markdown(obj: str) -> str:
         line = line.replace('<p>', '').replace('</p>', '')
         res = f'{res}\n\n{line}' if res else line
     return res
+
+
+def get_episode_image(url: str) -> str:
+    """Get the cover image URL for an RYM episode."""
+    req = urllib.request.Request(url, headers={'User-Agent': USERAGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            _bs = BeautifulSoup(response.read(), 'html.parser')
+            url = _bs.find('div', {'id': 'cover'})
+            if not url:
+                return ''
+            url = url['style']
+            if not url:
+                return ''
+            return url.replace('background-image:url(', '').replace(')', '')
+    except urllib.error.URLError as _e:
+        print(_e)
+    return ''
 
 
 def time_to_timestamp(obj: time.struct_time) -> str:
@@ -57,6 +78,9 @@ def generate_rym_embed(
         'url': episode.link,
         'thumbnail': {
             'url': episode.image.href
+        },
+        'image': {
+            'url': get_episode_image(episode.link)
         },
         'timestamp': time_to_timestamp(episode.published_parsed)
     }
@@ -114,17 +138,19 @@ if __name__ == '__main__':
         if len(queue) == 1:
             BODY['content'] += (
                 f'\n[MP3 Download]({queue[0].enclosures[0].href})')
-        req = urllib.request.Request(
+        REQ = urllib.request.Request(
                 URL,
                 data=json.dumps(BODY).encode('utf-8'),
                 headers={
                     'Content-Type': 'application/json',
-                    'User-Agent': 'RYM Podcast Bot'
+                    'User-Agent': USERAGENT
                 },
                 method='POST')
-        req.add_header('Content-Type', 'application/json')
-        with urllib.request.urlopen(req) as response:
-            print(response.read())
+        REQ.add_header('Content-Type', 'application/json')
+        with urllib.request.urlopen(REQ) as RESPONSE:
+            text = RESPONSE.read()
+            if text:
+                print(text)
 
         # Update file
         with open('lastepisode.txt', 'w', encoding='UTF-8') as file:
