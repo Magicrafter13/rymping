@@ -3,4 +3,5 @@
 /__pycache__/
 
 # Our stuff
+/config.py
 /lastepisode.txt
