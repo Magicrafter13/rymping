@@ -9,7 +9,7 @@ import urllib.request
 import feedparser
 # from icecream import ic
 
-from config import URL
+from config import ROLE, URL
 
 HTML_ANCHOR = re.compile(
     r"(.*)<a[^>]* href=([\"'])([^\"]+)\2[^>]*>([^<]+)</a>(.*)")
@@ -79,7 +79,8 @@ if __name__ == '__main__':
     queue = []
 
     # Get previously sent episode title (wish we had unique IDs)
-    with open('lastepisode.txt', 'r+', encoding='UTF-8') as file:
+    with open('lastepisode.txt', 'a+', encoding='UTF-8') as file:
+        file.seek(0)
         old = file.readlines()  # Should be TITLE\nDATE
         # Nothing in file (probably didn't exist) - just do latest episode
         if len(old) < 2:
@@ -109,7 +110,10 @@ if __name__ == '__main__':
             'New episodes of RYM are available!'
             if len(queue) > 1
             else 'A new episode of RYM is available!')
-        BODY['content'] += ' (@rymping)'
+        BODY['content'] += f' <@&{ROLE}>'
+        if len(queue) == 1:
+            BODY['content'] += (
+                f'\n[MP3 Download]({queue[0].enclosures[0].href})')
         req = urllib.request.Request(
                 URL,
                 data=json.dumps(BODY).encode('utf-8'),
