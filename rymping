@@ -1,0 +1,129 @@
+#!/usr/bin/python3
+"""Discord webhook notifier for RYM episodes."""
+
+import json
+import re
+import time
+import urllib.request
+
+import feedparser
+# from icecream import ic
+
+from config import URL
+
+HTML_ANCHOR = re.compile(
+    r"(.*)<a[^>]* href=([\"'])([^\"]+)\2[^>]*>([^<]+)</a>(.*)")
+
+
+def html_to_markdown(obj: str) -> str:
+    """Change HTML string into a Markdown style one."""
+    res = ''
+    for line in obj.split('</p> <p>'):
+        while HTML_ANCHOR.search(line):
+            match = HTML_ANCHOR.match(line)
+            display = match.group(4)
+            url = match.group(3)
+            if display.startswith('https://'):
+                display = url.replace('https://', '')
+            line = f'{match.group(1)}[{display}]({url}){match.group(5)}'
+        line = line.replace('<p>', '').replace('</p>', '')
+        res = f'{res}\n\n{line}' if res else line
+    return res
+
+
+def time_to_timestamp(obj: time.struct_time) -> str:
+    """Convert struct_time object into Discord timestamp string."""
+    return (
+        f'{obj.tm_year}-{obj.tm_mon:02}-{obj.tm_mday:02}'
+        f'T{obj.tm_hour:02}:{obj.tm_min:02}:{obj.tm_sec:02}.000Z')
+
+
+def generate_rym_embed(
+    title: str,
+    episode: feedparser.util.FeedParserDict
+) -> dict:
+    """Turn an RSS feed entry for an RYM episode into a Discord embed."""
+    return {
+        # 'id': f'{episode.published_parsed.tm_year}{episode}'
+        'title': episode.title,
+        'description': html_to_markdown(episode.description),
+        'color': 2326507,
+        'fields': [],
+        'author': {
+            'url': 'https://gitlab.matthewrease.net/matthew/rymping',
+            'name': title,
+            'icon_url': 'https://upload.wikimedia.org/wikipedia/commons/6/6d/Ligonier_Ministries_Logo.jpg',  # noqa: E501  pylint: disable=line-too-long
+        },
+        'url': episode.link,
+        'thumbnail': {
+            'url': episode.image.href
+        },
+        'timestamp': time_to_timestamp(episode.published_parsed)
+    }
+
+
+BODY = {
+    'content': '',
+    'tts': False,
+    'embeds': [],
+    'components': [],
+    'actions': {},
+    'username': 'RYM Bot',
+    'avatar_url': 'https://static.libsyn.com/p/assets/2/3/e/9/23e93e91dc9cf379a04421dee9605cbd/3000x3000_RenewingYourMind.jpg'  # noqa: E501  pylint: disable=line-too-long
+}
+
+if __name__ == '__main__':
+    # Get RSS Feed
+    feed = feedparser.parse('https://renewingyourmind.ligonier.org/rss')
+
+    queue = []
+
+    # Get previously sent episode title (wish we had unique IDs)
+    with open('lastepisode.txt', 'r+', encoding='UTF-8') as file:
+        old = file.readlines()  # Should be TITLE\nDATE
+        # Nothing in file (probably didn't exist) - just do latest episode
+        if len(old) < 2:
+            queue = [feed.entries[0]]
+        # There was something in the file, so lets try to find every episode
+        # released since this was last ran
+        else:
+            _I = 0
+            while (
+                _I < len(feed.entries)
+                and feed.entries[_I].title.strip() != old[0]
+                and feed.entries[_I].published != old[1]
+            ):
+                queue.append(feed.entries[_I])
+                _I += 1
+
+    # If there's any work to do, do it here
+    if queue:
+        # Generate and add embeds
+        BODY['embeds'] = [
+            generate_rym_embed(feed.feed.title, episode)
+            for episode in queue
+        ]
+
+        # Send data to webhook
+        BODY['content'] = (
+            'New episodes of RYM are available!'
+            if len(queue) > 1
+            else 'A new episode of RYM is available!')
+        BODY['content'] += ' (@rymping)'
+        req = urllib.request.Request(
+                URL,
+                data=json.dumps(BODY).encode('utf-8'),
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'RYM Podcast Bot'
+                },
+                method='POST')
+        req.add_header('Content-Type', 'application/json')
+        with urllib.request.urlopen(req) as response:
+            print(response.read())
+
+        # Update file
+        with open('lastepisode.txt', 'w', encoding='UTF-8') as file:
+            file.seek(0)
+            file.write(f'{queue[0].title.strip()}\n{queue[0].published}')
+            file.truncate()

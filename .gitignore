@@ -1,0 +1,6 @@
+# Python nonsense
+/venv/
+/__pycache__/
+
+# Our stuff
+/lastepisode.txt
