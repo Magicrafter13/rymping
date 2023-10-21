@@ -96,7 +96,17 @@ BODY = {
 
 if __name__ == '__main__':
     # Get RSS Feed
-    feed = feedparser.parse('https://renewingyourmind.ligonier.org/rss')
+    _r = {}
+    try:
+        _r = requests.get(
+            'https://renewingyourmind.ligonier.org/rss',
+            headers={'User-Agent': USERAGENT},
+            timeout=30)
+    except requests.ConnectionError as _e:
+        print('Could not get RSS feed.')
+        print(_e)
+        sys.exit(1)
+    feed = feedparser.parse(_r.text)
 
     queue = []
 
