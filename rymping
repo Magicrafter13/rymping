@@ -31,7 +31,7 @@ def html_to_markdown(obj: str) -> str:
             if display.startswith('https://'):
                 display = url.replace('https://', '')
             line = f'{match.group(1)}[{display}]({url}){match.group(5)}'
-        line = line.replace('<p>', '').replace('</p>', '')
+        line = line.replace('<p>', '').replace('</p>', '').replace('<br />', '\n')
         res = f'{res}\n\n{line}' if res else line
     return res
 
