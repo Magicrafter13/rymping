@@ -75,7 +75,7 @@ def generate_rym_embed(
         },
         'url': episode.link,
         'thumbnail': {
-            'url': episode.image.href
+            'url': episode.image.href if hasattr(episode, 'image') else 'https://ligonier.imgix.net/rym/1200x628_eBlastHero_RC_Football.jpeg'
         },
         'image': {
             'url': get_episode_image(episode.link)
